@@ -1,0 +1,24 @@
+# This file defines who owns specific parts of the codebase
+
+# Frontend
+frontend/ @Shreyas-135
+
+# Node Backend
+backend-node/ @Shreyas-135
+
+# FastAPI Backend
+backend-fastapi/ @Shreyas-135
+
+# Spring Boot Backend
+backend-springboot/ @Shreyas-135
+
+# Tests
+tests/ @Shreyas-135
+
+# DevOps
+devops/ @Shreyas-135
+.github/workflows/ @Shreyas-135
+
+# Documentation
+docs/ @Shreyas-135
+README.md @Shreyas-135

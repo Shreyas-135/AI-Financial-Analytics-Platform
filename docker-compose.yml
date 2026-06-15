@@ -1,0 +1,162 @@
+version: '3.9'
+
+services:
+  # Frontend - Next.js React Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:3001
+      - NEXT_PUBLIC_FASTAPI_URL=http://localhost:8000
+    depends_on:
+      - backend-node
+      - backend-fastapi
+    networks:
+      - fintech-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+
+  # Node.js/Express Backend
+  backend-node:
+    build:
+      context: ./backend-node
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - MONGODB_URI=mongodb://mongodb:27017/fintech
+      - POSTGRES_URI=postgresql://postgres:postgres@postgres:5432/fintech
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=dev-secret-key-change-in-production
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FASTAPI_URL=http://backend-fastapi:8000
+      - SPRINGBOOT_URL=http://backend-springboot:8080
+    depends_on:
+      - mongodb
+      - postgres
+      - redis
+    networks:
+      - fintech-network
+    volumes:
+      - ./backend-node:/app
+      - /app/node_modules
+    command: npm run dev
+
+  # FastAPI Backend (Python)
+  backend-fastapi:
+    build:
+      context: ./backend-fastapi
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - MONGODB_URI=mongodb://mongodb:27017/fintech
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - NODE_API_URL=http://backend-node:3001
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - fintech-network
+    volumes:
+      - ./backend-fastapi:/app
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Spring Boot Backend (Java)
+  backend-springboot:
+    build:
+      context: ./backend-springboot
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/fintech
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/fintech
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - mongodb
+      - postgres
+      - redis
+    networks:
+      - fintech-network
+    volumes:
+      - ./backend-springboot:/app
+
+  # MongoDB
+  mongodb:
+    image: mongo:7.0
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=fintech
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - fintech-network
+
+  # PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=fintech
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - fintech-network
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - fintech-network
+    command: redis-server --appendonly yes
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./devops/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./devops/nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend-node
+      - backend-fastapi
+      - backend-springboot
+    networks:
+      - fintech-network
+
+volumes:
+  mongodb_data:
+  postgres_data:
+  redis_data:
+
+networks:
+  fintech-network:
+    driver: bridge
